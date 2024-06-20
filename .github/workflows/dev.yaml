@@ -1,8 +1,8 @@
 name: Deploy web app to Dev
 
 env:
-  APP_LOCATION: "/" 
-  API_LOCATION: "api" 
+  APP_LOCATION: "./my-app" 
+  API_LOCATION: "" 
   OUTPUT_LOCATION: "build" 
 
 on:
