@@ -1,4 +1,4 @@
-name: Deploy Webapp to Development
+name: Deploy Webapp to Quality Assurance
 
 env:
   APP_LOCATION: "./my-app" 
@@ -8,13 +8,13 @@ env:
 on:
   push:
     branches:
-      - dev
-      - dev/*
+      - qa
+      - qa/*
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
-      - dev
-      - dev/*
+      - qa
+      - qa/*
 
 permissions:
   issues: write
@@ -22,7 +22,20 @@ permissions:
   pull-requests: write
 
 jobs:
+  static_code_scan:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Static Code Scan
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static code scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
   build_and_deploy:
+    needs: static_code_scan
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy

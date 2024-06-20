@@ -1,4 +1,4 @@
-name: Deploy Webapp to Development
+name: Deploy Webapp to Production
 
 env:
   APP_LOCATION: "./my-app" 
@@ -8,13 +8,11 @@ env:
 on:
   push:
     branches:
-      - dev
-      - dev/*
+      - main
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
-      - dev
-      - dev/*
+      - main
 
 permissions:
   issues: write
