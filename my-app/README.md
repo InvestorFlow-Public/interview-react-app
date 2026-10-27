@@ -1,70 +1,50 @@
-# Getting Started with Create React App
+# Notification Center (React)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React 18 + TypeScript front end for the `interview-dotnet-api` Notification API.
 
-## Available Scripts
+## Running locally
 
-In the project directory, you can run:
+1. Start the API (from `interview-dotnet-api`): `dotnet run` — serves `https://localhost:5001`.
+2. Start this app: `npm install && npm start` — opens `http://localhost:3000`.
 
-### `npm start`
+In development, `/api/*` requests are forwarded to `https://localhost:5001` by the CRA dev
+proxy (`"proxy"` in `package.json`), so the API does not need CORS. To call the API directly
+(e.g. in a production build), set `REACT_APP_API_BASE_URL`, and enable CORS on the API.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Routes
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+| Path                  | Purpose                                                    |
+| --------------------- | ---------------------------------------------------------- |
+| `/notifications/new`  | Create a notification                                      |
+| `/notifications`      | List, view, mark as read and delete notifications          |
 
-### `npm test`
+The API exposes no general update endpoint, so "edit" is limited to **Mark as read**
+(`PUT /api/notifications/{id}/read`).
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Structure
 
-### `npm run build`
+```
+src/
+  api/          httpClient — typed fetch wrapper and ApiError
+  services/     notificationService — one function per API endpoint, framework-agnostic
+  types/        API contract types (mirror the .NET models/DTOs)
+  hooks/        React Query hooks over the services (caching, invalidation)
+  components/   Layout, NotificationForm, dialogs
+  pages/        Route-level pages
+  utils/        Formatting helpers
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Other pages should reuse `services/` (or the hooks in `hooks/`) rather than calling `fetch` directly.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Scripts
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- `npm start` — dev server
+- `npm test` — unit tests (Jest + Testing Library)
+- `npm run typecheck` — TypeScript type check
+- `npm run build` — production build
 
-### `npm run eject`
+## TypeScript version
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+`react-scripts@5` declares a peer range of TypeScript `^4`, but the MUI v9 type definitions need
+TypeScript 5. The `overrides` entry in `package.json` pins TypeScript to the version in
+`devDependencies` so `npm install` resolves cleanly; CRA's type checker works with it.
