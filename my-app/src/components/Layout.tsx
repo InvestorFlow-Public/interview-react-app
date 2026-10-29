@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
+import { authService } from '../services/authService';
 
 const navItems = [
   { to: '/notifications', label: 'Notifications', end: true },
@@ -7,6 +8,7 @@ const navItems = [
 ];
 
 export default function Layout() {
+  const navigate = useNavigate();
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
       <AppBar position="static" elevation={0}>
@@ -28,6 +30,15 @@ export default function Layout() {
               </Button>
             ))}
           </Box>
+          <Button
+            color="inherit"
+            onClick={() => {
+              authService.logout();
+              navigate('/login', { replace: true });
+            }}
+          >
+            Log out
+          </Button>
         </Toolbar>
       </AppBar>
 

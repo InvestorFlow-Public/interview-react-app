@@ -1,3 +1,5 @@
+import { tokenStore } from './token';
+
 // Empty by default so requests go through the CRA dev proxy (see "proxy" in package.json).
 const BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -64,6 +66,7 @@ export async function request<T>(
   path: string,
   { method = 'GET', body, headers, signal }: RequestOptions = {}
 ): Promise<T> {
+  const token = tokenStore.get();
   let response: Response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
@@ -72,6 +75,7 @@ export async function request<T>(
       headers: {
         Accept: 'application/json',
         ...(body !== undefined && { 'Content-Type': 'application/json' }),
+        ...(token && path.startsWith('/api/notifications') && { Authorization: `Bearer ${token}` }),
         ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -82,6 +86,12 @@ export async function request<T>(
   }
 
   const data = await parseBody(response);
+  // Expired/invalid token: drop it and send the user back to login.
+  // Auth endpoints are exempt so a wrong password just shows an error.
+  if (response.status === 401 && !path.startsWith('/api/auth')) {
+    tokenStore.clear();
+    window.location.assign('/login');
+  }
   if (!response.ok) throw toApiError(response, data);
   return data as T;
 }
