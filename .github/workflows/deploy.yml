@@ -1,0 +1,165 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, qa, stg, prd]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - name: Set environment
+        id: env
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=prd" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-infrastructure:
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: 
+      name: ${{ needs.setup.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure Login via CLI
+        run: |
+          az login --service-principal \
+            --username ${{ secrets.AZURE_CLIENT_ID }} \
+            --password ${{ secrets.AZURE_CLIENT_SECRET }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          az account show
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+      
+      - name: Terraform Init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=tfstate123546${{ needs.setup.outputs.environment }}"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_USE_CLI: false
+      
+      - name: Terraform Apply
+        working-directory: terraform
+        run: |
+          terraform apply -auto-approve \
+            -var-file="${{ needs.setup.outputs.environment }}.tfvars"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_USE_CLI: false
+      
+      - name: Get Outputs
+        id: tf-output
+        working-directory: terraform
+        run: |
+          # Get the token
+          TOKEN=$(terraform output -raw static_web_app_token)
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
+            echo "Error: Could not retrieve deployment token"
+            exit 1
+          fi
+          
+          echo "Token retrieved successfully (length: ${#TOKEN})"
+          echo "::add-mask::$TOKEN"
+          
+          # Save to file for artifact
+          echo "$TOKEN" > /tmp/deployment_token.txt
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_USE_CLI: false
+      
+      - name: Upload Token as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-token
+          path: /tmp/deployment_token.txt
+          retention-days: 1
+
+  deploy-app:
+    needs: [setup, deploy-infrastructure]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.setup.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Token Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-token
+          path: /tmp
+      
+      - name: Read Token from Artifact
+        id: read-token
+        run: |
+          TOKEN=$(cat /tmp/deployment_token.txt)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "Token loaded from artifact (length: ${#TOKEN})"
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: my-app/package-lock.json
+      
+      - name: Install and Build
+        working-directory: my-app
+        run: |
+          npm ci
+          npm run build
+      
+      - name: Deploy to Azure Static Web Apps
+        run: |
+          # Install Static Web Apps CLI
+          npm install -g @azure/static-web-apps-cli
+          
+          # Deploy using the token
+          TOKEN="${{ steps.read-token.outputs.token }}"
+          
+          if [ -z "$TOKEN" ]; then
+            echo "ERROR: Token is empty!"
+            exit 1
+          fi
+          
+          echo "Deploying to Azure Static Web Apps..."
+          swa deploy ./my-app/build \
+            --deployment-token "$TOKEN" \
+            --env production
