@@ -1,0 +1,9 @@
+resource_group_name = "rg-investorflow"
+location            = "eastus2"
+environment         = "dev"
+acr_name            = "investorflowacr"
+image_tag           = "latest"
+backend_min_replicas = 1
+backend_max_replicas = 1
+frontend_min_replicas = 1
+frontend_max_replicas = 1
