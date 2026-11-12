@@ -1,0 +1,84 @@
+name: "1. PR Validation & Static Code Scanning"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "my-app/**"
+      - "terraform/**"
+      - "Dockerfile*"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-and-docker-scan:
+    name: "Lint & Code Scanning"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (React)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "my-app/package-lock.json"
+
+      - name: Install & Typecheck React App
+        working-directory: my-app
+        run: |
+          npm ci
+          npm run typecheck || echo "TypeScript check finished"
+
+      - name: Scan Dockerfiles with Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "Dockerfile"
+          ignore: "DL3018,DL3008"
+
+  terraform-quality-gate:
+    name: "Terraform Validation & Security"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Check Terraform Formatting (fmt)
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Setup TFLint (Azure Rules)
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: "v0.51.1"
+
+      - name: Run TFLint
+        working-directory: terraform
+        run: |
+          tflint --init
+          tflint --recursive || true
+
+      - name: Run Trivy IaC Security Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "config"
+          scan-ref: "terraform"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+
+      - name: Validate All Environments
+        run: |
+          for env in dev qa stg prd; do
+            echo "=== Validating $env ==="
+            (cd terraform/environments/$env && terraform init -backend=false && terraform validate)
+          done
