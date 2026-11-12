@@ -33,3 +33,45 @@ docker run --name api-investor \
   -e Cors__AllowedOrigins="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3080" \
   interview-dotnet-api:latest
 ```
+
+## Components
+
+### Inventory
+
+- Resource Group: `azurerm_resource_group`
+- Container registry
+  - Explicitly ommited from terraform
+- Virtual Network: `azurerm_virtual_network`
+- Subnet for container apps: `azurerm_subnet`
+- Container App Env: `azurerm_container_app_environment`
+- Frontend / ReactApp: `azurerm_container_app`
+- Backend / Dotnet API and SQLite: `azurerm_container_app`
+  - Storage account explicitly ommited
+
+### Connections
+
+```mermaid
+architecture-beta
+    group shared(cloud)[Shared Services]
+    service acr(disk)[Container Registry] in shared
+
+    group client_side(internet)[Client]
+    service client(internet)[Client Browser] in client_side
+
+    group rg(cloud)[Resource Group: rg-investorflow-dev]
+    service law(disk)[Log Analytics Workspace] in rg
+    service frontend(internet)[Frontend - React] in rg
+    service backend(server)[Backend - .NET API] in rg
+
+    %% Flows
+    acr:R --> L:frontend
+    acr:R --> L:backend
+    client:B --> T:frontend
+    client:B --> T:backend
+    frontend:R -- L:law
+    backend:R -- L:law
+```
+
+## Interview Comments
+
+- The terraform folder does not have to live in this repo
