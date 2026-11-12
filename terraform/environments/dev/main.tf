@@ -1,7 +1,7 @@
 module "stack" {
   source = "../../modules/app-stack"
 
-  resource_group_name   = var.resource_group_name
+  resource_group_name = var.resource_group_name
   location              = var.location
   environment           = var.environment
   acr_name              = var.acr_name
