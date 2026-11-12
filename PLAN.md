@@ -72,6 +72,27 @@ architecture-beta
     backend:R -- L:law
 ```
 
+## CI / CD
+
+### Pull Request (Quality Gate)
+
+- Trigger on PR to main
+- Static code scanning (Security & Linters)
+- Automated `terraform plan` comment on PR
+
+### Application Delivery
+
+- Path-based triggers for app code
+- Build and vulnerability scan container images
+- Publish images to ACR
+- Deploy updates to Azure Container Apps
+
+### Infrastructure Updates (Terraform)
+
+- Path-based triggers for `terraform/**`
+- Multi-environment progressive rollout (`dev` -> `qa` -> `stg` -> `prd`)
+- Manual approval gate for production (`prd`)
+
 ## Interview Comments
 
 - The terraform folder does not have to live in this repo
