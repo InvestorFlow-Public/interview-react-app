@@ -1,0 +1,59 @@
+name: "4. Deploy Application to Container Apps"
+
+on:
+  workflow_run:
+    workflows: ["2. Build & Publish Container Images"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Target environment to deploy"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - qa
+          - stg
+          - prd
+      image_tag:
+        description: "Image tag to deploy"
+        required: true
+        default: "latest"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-application:
+    name: "Deploy App to ${{ github.event.inputs.target_env || 'dev' }}"
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target_env || 'development' }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Container Updates via Azure CLI
+        env:
+          ENV_NAME: ${{ github.event.inputs.target_env || 'dev' }}
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || 'latest' }}
+          ACR_NAME: "investorflowacr"
+        run: |
+          RG_NAME="rg-investorflow-${ENV_NAME}"
+          echo "Deploying to Resource Group: ${RG_NAME}"
+
+          # Update Frontend React Container App
+          az containerapp update \
+            --name "frontend-react-${ENV_NAME}" \
+            --resource-group "${RG_NAME}" \
+            --image "${ACR_NAME}.azurecr.io/interview-react-app:${IMAGE_TAG}"
